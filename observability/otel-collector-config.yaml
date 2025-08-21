@@ -12,25 +12,22 @@ processors:
     send_batch_size: 1024
     send_batch_max_size: 2048
 
-#  resource:
-#    attributes:
-#      - key: service.name
-#        value: book-api
-#        action: upsert
-#      - key: service.version
-#        value: "1.0.0"
-#        action: upsert
-#      - key: deployment.environment
-#        value: docker
-#        action: upsert
+  resource:
+    attributes:
+      - key: service.name
+        value: "book-api"
+        action: upsert
+      - key: deployment.environment
+        value: "docker"
+        action: upsert
 
   memory_limiter:
-    limit_mib: 128
-    spike_limit_mib: 32
+    limit_mib: 512
+    spike_limit_mib: 128
     check_interval: 5s
 
 exporters:
-  otlp:
+  jaeger:
     endpoint: jaeger:14250
     tls:
       insecure: true
@@ -38,34 +35,42 @@ exporters:
   prometheus:
     endpoint: "0.0.0.0:8889"
     const_labels:
-      label1: value1
+      environment: docker
 
   loki:
     endpoint: http://loki:3100/loki/api/v1/push
+    headers:
+      "Content-Type": "application/json"
     format: json
     labels:
       attributes:
         service.name: "service_name"
-        service.version: "service_version"
+        level: "level"
 
   logging:
     loglevel: info
 
 service:
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: 0.0.0.0:8888
+
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [otlp, logging]
+      processors: [memory_limiter, resource, batch]
+      exporters: [jaeger, logging]
 
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource, batch]
       exporters: [prometheus, logging]
 
     logs:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
+      processors: [memory_limiter, resource, batch]
       exporters: [loki, logging]
 
   extensions: []
